@@ -2,9 +2,8 @@ name: MSVC POSIX Shims
 
 on:
   push:
-    branches: [fix/msvc-posix-shims]
+    branches: [main]
   pull_request:
-    branches: [fix/msvc-posix-shims]
 
 jobs:
   msvc_compile:
