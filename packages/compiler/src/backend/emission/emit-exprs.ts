@@ -3522,6 +3522,14 @@ export function emitExpr(E: CEmitter, e: IrExpr): Temp {
           // halves and naive floor(x+0.5) drifts at the epsilon boundary).
           case "math.abs":
             return finish(`fabs(${arg(0)})`);
+          // Math.sqrt is IEEE-754 correctly-rounded in both libm and the JS
+          // spec, so it is bit-exact. Math.sin/cos/exp/log/pow are NOT
+          // required to be correctly rounded by either spec — libm and
+          // V8's fdlibm-derived Math agree to double precision but may
+          // differ by a ULP or two on transcendental inputs. Domain
+          // errors (sqrt of a negative, log of zero/negative, 0**negative)
+          // fall out of IEEE-754 the same way in C and JS: NaN or ±Infinity,
+          // never a throw.
           case "math.sin":
             return finish(`sin(${arg(0)})`);
           case "math.cos":
@@ -3534,6 +3542,8 @@ export function emitExpr(E: CEmitter, e: IrExpr): Temp {
             return finish(`log(${arg(0)})`);
           case "math.pow":
             return finish(`pow(${arg(0)}, ${arg(1)})`);
+          // Math.fround — narrow to float32 and widen back to double,
+          // matching the JS single-precision rounding. No throw.
           case "math.fround":
             return finish(`(double)(float)(${arg(0)})`);
           case "math.round":
