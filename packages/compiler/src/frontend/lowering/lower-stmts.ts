@@ -2033,7 +2033,7 @@ export function isParseArgsDynCheckerType(L: Lowerer, type: ts.Type): boolean {
    * the one split surface: its five CALL members fence by name, while
    * the rest (`Console` — the suite's constructor-identity probe) have
    * no surface to lose and bind tokens. */
-  const TOKEN_OPAQUE_GLOBALS: ReadonlySet<string> = new Set([]);
+  const TOKEN_OPAQUE_GLOBALS: ReadonlySet<string> = new Set(["crypto"]);
   const CONSOLE_CALL_MEMBERS: ReadonlySet<string> = new Set(["log", "info", "debug", "error", "warn"]);
 
 /** `const { subtle } = globalThis.crypto`, `const { Console } = console`,
