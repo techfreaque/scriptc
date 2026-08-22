@@ -225,8 +225,9 @@ function programInputs(file: string): string[] {
 // the shims, and the Node build (corpus stdout is deterministic by
 // construction — it must match a non-Node native binary byte-for-byte). So
 // cache it, keyed by all of those plus the invocation shape (the complete
-// inherited environment and the cwd). Only the SPAWN is skipped: the native side always runs live
-// and the comparison itself never changes. SCRIPTC_NO_CACHE=1 (or an unset
+// inherited environment and the cwd). Only the SPAWN is skipped: the native
+// side always runs live and the comparison itself never changes.
+// SCRIPTC_NO_CACHE=1 (or an unset
 // SCRIPTC_CACHE_DIR) disables the cache in both directions — no reads, no writes.
 // Storage shares the compile cache's root and its LRU sweep (see cc.ts).
 const oracleDir =
