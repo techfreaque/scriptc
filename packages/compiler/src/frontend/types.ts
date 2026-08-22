@@ -2,7 +2,7 @@ import * as ts from "./ts7/adapter.js";
 import type { IrRecordShape, IrType, IrUnionDef } from "../ir/nodes.js";
 import { arrayOf, BOOL, bytesOf, canConvertToDyn, CHILD_T, DATE_T, DYN, F64, funcOf, isSupportedArrayElem, isSupportedIndexValue, isSupportedMapKey, isSupportedMapValue, isSupportedSetElem, isUnitType, JSVAL, mapOf, NULL_T, PROCSTREAM_T, RUNTIME_EMITTER_CLASS, RUNTIME_ERROR_CLASSES, RUNTIME_STREAM_CLASSES, setOf, STRING, SYMBOL_T, typeEquals, typeKey, UNDEFINED_T, VOID } from "../ir/nodes.js";
 
-import { isJsSourceFile, isNodeTypesPath } from "./program.js";
+import { isJsSourceFile, isMidiTypesPath, isNodeTypesPath } from "./program.js";
 import { accessorSlotProp } from "../ir/nodes.js";
 // typeKey moved to ir/nodes.ts (the backend needs it too, for per-type
 // helper interning); re-exported here so frontend call sites keep their
@@ -514,6 +514,10 @@ export function formatIrType(t: IrType, shapes: ShapeRegistry, unions: UnionRegi
       return "Http2Stream";
     case "dgramSocket":
       return "dgram.Socket";
+    case "midiInput":
+      return "midi.Input";
+    case "midiOutput":
+      return "midi.Output";
     case "testCtx":
       return "TestContext";
     case "httpReq":
@@ -1210,7 +1214,7 @@ function mapTypeInner(type: ts.Type, ctx: TypeMapperCtx): IrType | null {
   // no class identity of its own.
   if (widened.isIntersectionType()) {
     const HANDLE_KINDS = new Set([
-      "netServer", "netSocket", "httpReq", "httpRes", "httpClientReq", "dgramSocket",
+      "netServer", "netSocket", "httpReq", "httpRes", "httpClientReq", "dgramSocket", "midiInput", "midiOutput",
       // process.stdout's own type IS the refined intersection
       // `WriteStream & { fd: 1 }` — the scalar stream kind rides the same
       // refinement rule.
@@ -1930,6 +1934,32 @@ function mapTypeInner(type: ts.Type, ctx: TypeMapperCtx): IrType | null {
     )
   ) {
     return { kind: "dgramSocket" };
+  }
+  // midi.Input / midi.Output: the node-midi port classes, disambiguated by
+  // their fallback ambient module or by @julusian/midi's declaration path.
+  // The names are generic enough to collide with user classes, so this
+  // provenance guard is load-bearing.
+  if (
+    psym?.name === "Input" &&
+    checker.declarationsOf(psym).some(
+      (d) =>
+        (ts.isInterfaceDeclaration(d) || ts.isClassDeclaration(d)) &&
+        ctx.isStdlibFile(d.getSourceFile()) &&
+        (isDeclaredInAmbientModule(d, "midi") || isMidiTypesPath(d.getSourceFile().fileName)),
+    )
+  ) {
+    return { kind: "midiInput" };
+  }
+  if (
+    psym?.name === "Output" &&
+    checker.declarationsOf(psym).some(
+      (d) =>
+        (ts.isInterfaceDeclaration(d) || ts.isClassDeclaration(d)) &&
+        ctx.isStdlibFile(d.getSourceFile()) &&
+        (isDeclaredInAmbientModule(d, "midi") || isMidiTypesPath(d.getSourceFile().fileName)),
+    )
+  ) {
+    return { kind: "midiOutput" };
   }
   // node:test's TestContext — the test-body parameter (`test('x', (t) =>
   // ...)`). @types/node's `class TestContext` and the fallback

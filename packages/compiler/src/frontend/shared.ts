@@ -51,13 +51,21 @@ export function isNodeTypesPath(file: string): boolean {
   return pkg === "@types/node" || pkg === "undici-types";
 }
 
+/** True for the declaration surface shipped by the Node-compatible MIDI
+ * package. ScriptC lowers this package's Input/Output handles natively, so
+ * its declarations are trusted surface types rather than dynamic-island
+ * package values. */
+export function isMidiTypesPath(file: string): boolean {
+  return npmPackageNameOf(file) === "@julusian/midi";
+}
+
 /** The node builtin modules with scriptc lowerings, by CANONICAL (bare)
  * name — every module answers to both specifier forms ("fs" and "node:fs"
  * are the same module, like in Node). When the fallback declarations ship,
  * this is exactly the set of `declare module` names in that file; when
  * @types/node stands in (which declares ALL node builtins) the supported
  * surface must not widen, so preflight allowlists this same fixed set. */
-export const SUPPORTED_BUILTIN_MODULES = ["fs", "path", "path/posix", "path/win32", "os", "url", "fs/promises", "crypto", "zlib", "child_process", "net", "http", "tls", "https", "dgram", "dns", "util", "util/types", "string_decoder", "querystring", "readline", "http2", "assert", "assert/strict", "worker_threads", "buffer", "cluster", "tty", "async_hooks", "events", "stream", "stream/promises", "stream/consumers", "test", "timers", "timers/promises", "diagnostics_channel", "perf_hooks", "module"] as const;
+export const SUPPORTED_BUILTIN_MODULES = ["fs", "path", "path/posix", "path/win32", "os", "url", "fs/promises", "crypto", "zlib", "child_process", "net", "http", "tls", "https", "dgram", "dns", "midi", "util", "util/types", "string_decoder", "querystring", "readline", "http2", "assert", "assert/strict", "worker_threads", "buffer", "cluster", "tty", "async_hooks", "events", "stream", "stream/promises", "stream/consumers", "test", "timers", "timers/promises", "diagnostics_channel", "perf_hooks", "module"] as const;
 
 /** Builtins Node itself serves ONLY under the node: prefix —
  * require("test") is MODULE_NOT_FOUND in Node, so the bare name stays a
