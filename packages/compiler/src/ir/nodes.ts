@@ -157,6 +157,20 @@ export type IrType =
    * lean allocation, no trace header. Same container rules: union arms
    * fine, arrays/maps/JSON fenced. */
   | { kind: "dgramSocket" }
+  /** A node:midi input port handle (scr_midi.c — linked only when the IR
+   * uses the midi surface, the moduleUsesMidi switch). Heap, refcounted,
+   * MUTABLE like dgramSocket: the loop's midi hook delivers time-stamped
+   * messages and fires its listeners. An OPEN input is a live source that
+   * holds the loop alive (the bound-socket story); listeners are held only
+   * until the handle settles (closePort, or the exit-time cleanup) — the
+   * dgramSocket ownership story, so lean allocation, no trace header. Same
+   * container rules: union arms fine, arrays/maps/JSON fenced. */
+  | { kind: "midiInput" }
+  /** A node:midi output port handle (scr_midi.c — same unit as midiInput).
+   * Heap, refcounted like midiInput, but an output NEVER holds the loop
+   * alive (sendMessage is fire-and-forget, like a connected dgram send).
+   * No listeners — lean, no trace header. */
+  | { kind: "midiOutput" }
   /** A node:test TestContext handle (scr_test.c — linked only when the
    * IR uses the node:test surface). Heap, refcounted, no cycles (the
    * runner tree owns the children; the parent edge is a borrowed
@@ -320,7 +334,7 @@ export const REF_TRUTHY_KINDS: ReadonlySet<string> = new Set([
   // constant-true answer.
   "symbol",
   "date", "array", "map", "set", "regex", "url", "searchParams", "stats", "fileHandle", "spawnRes", "child",
-  "netServer", "netSocket", "http2Session", "http2Stream", "dgramSocket", "testCtx", "httpReq", "httpRes", "httpClientReq",
+  "netServer", "netSocket", "http2Session", "http2Stream", "dgramSocket", "midiInput", "midiOutput", "testCtx", "httpReq", "httpRes", "httpClientReq",
   "secureCtx", "fsWatcher", "childStream", "procStream", "bytes", "func", "object", "record", "promise",
   // A generator object is a JS object: always truthy.
   "generator",
@@ -346,6 +360,8 @@ export const NETSOCKET_T: IrType = { kind: "netSocket" };
 export const HTTP2SESSION_T: IrType = { kind: "http2Session" };
 export const HTTP2STREAM_T: IrType = { kind: "http2Stream" };
 export const DGRAMSOCK_T: IrType = { kind: "dgramSocket" };
+export const MIDIIN_T: IrType = { kind: "midiInput" };
+export const MIDIOUT_T: IrType = { kind: "midiOutput" };
 export const TESTCTX_T: IrType = { kind: "testCtx" };
 export const HTTPREQ_T: IrType = { kind: "httpReq" };
 export const HTTPRES_T: IrType = { kind: "httpRes" };
@@ -558,6 +574,8 @@ export function typeKey(t: IrType): string {
     case "http2Session":
     case "http2Stream":
     case "dgramSocket":
+    case "midiInput":
+    case "midiOutput":
     case "testCtx":
     case "httpReq":
     case "httpRes":
@@ -677,6 +695,10 @@ export function isRefCounted(t: IrType): boolean {
     t.kind === "http2Session" ||
     t.kind === "http2Stream" ||
     t.kind === "dgramSocket" ||
+    // midi input/output handles are refcounted like dgramSocket (listeners
+    // drop at closePort, so lean allocation — see the IrType comment).
+    t.kind === "midiInput" ||
+    t.kind === "midiOutput" ||
     // TestContext handles are refcounted like dgramSocket (the runner
     // tree owns children; no cycles through the handle).
     t.kind === "testCtx" ||
@@ -2476,6 +2498,26 @@ export type IrLibFn =
   | "dgram.onClose"
   | "dgram.onConnect"
   | "dns.lookup"
+  /** node:midi (scr_midi.c + the loop's midi hook — linked only when one
+   * of these appears on the IR; moduleUsesMidi is the switch). Input and
+   * Output handles construct through new*; the port surface enumerates,
+   * opens (real or virtual), and closes; sendArray/sendBytes marshal a
+   * number[] or Uint8Array to the wire; onMessage MOVES its callback into
+   * the input's registry and fires it (deltaTime, number[]) on the loop
+   * thread through the per-arity adapter (scr_midi_msg_thunk0/1/2). Opens
+   * and sends may-throw (bad index, closed port, no backend). */
+  | "midi.newInput"
+  | "midi.newOutput"
+  | "midi.portCount"
+  | "midi.portName"
+  | "midi.openPort"
+  | "midi.openVirtual"
+  | "midi.closePort"
+  | "midi.isOpen"
+  | "midi.ignoreTypes"
+  | "midi.sendArray"
+  | "midi.sendBytes"
+  | "midi.onMessage"
   /** node:test (scr_test.c — linked only when one of these appears on
    * the IR; moduleUsesNodeTest is the switch, and the main epilogue asks
    * scr_test_exit_code() for the process's exit status). Strings are
@@ -5414,6 +5456,8 @@ function isJsonSafeAt(
     case "http2Session":
     case "http2Stream":
     case "dgramSocket":
+    case "midiInput":
+    case "midiOutput":
     case "testCtx":
     case "httpReq":
     case "httpRes":
@@ -6549,6 +6593,37 @@ export function moduleUsesDgram(mod: IrModule): boolean {
   return found;
 }
 
+/** True when the module contains any midi.* libCall — the link switch
+ * that pulls scr_midi.c into the binary and has the emitted main call the
+ * midi install/dispatch hook (cc.ts + emitter; the moduleUsesDgram shape,
+ * with the ALSA/CoreMIDI/WinMM link flags gated on the same answer).
+ * midi-free programs pay zero bytes and keep their exact link line. Same
+ * generic-walk shape as moduleUsesDgram. */
+export function moduleUsesMidi(mod: IrModule): boolean {
+  let found = false;
+  const visit = (v: unknown): void => {
+    if (found || v === null || typeof v !== "object") return;
+    if (Array.isArray(v)) {
+      for (const item of v) visit(item);
+      return;
+    }
+    const node = v as { kind?: unknown; fn?: unknown };
+    if (node.kind === "libCall" && typeof node.fn === "string" && node.fn.startsWith("midi.")) {
+      found = true;
+      return;
+    }
+    // A midi HANDLE TYPE left behind by a fenced statement still emits a
+    // release call — the unit must link (the moduleUsesDgram type story).
+    if (node.kind === "midiInput" || node.kind === "midiOutput") {
+      found = true;
+      return;
+    }
+    for (const key of Object.keys(v)) visit((v as Record<string, unknown>)[key]);
+  };
+  visit(mod);
+  return found;
+}
+
 /** True when the module contains any http.* libCall — the link switch
  * that pulls scr_http.c into the binary (cc.ts; moduleUsesNet already
  * answers true for these, so scr_net.c comes along). */
@@ -6747,6 +6822,8 @@ const LIB_MODE_REFUSED_KINDS: ReadonlyMap<string, string> = new Map([
   ["http2Session", "the node:http2 surface"],
   ["http2Stream", "the node:http2 surface"],
   ["dgramSocket", "the node:dgram surface"],
+  ["midiInput", "the node:midi surface"],
+  ["midiOutput", "the node:midi surface"],
   ["fsWatcher", "fs.watch"],
   ["testCtx", "the node:test surface"],
   ["httpReq", "the node:http surface"],
@@ -6808,6 +6885,7 @@ export function moduleLibAsyncSurface(mod: IrModule): { surface: string; loc: Sr
     [moduleUsesHttpServer(mod), "the node:http surface"],
     [moduleUsesHttp2(mod), "the node:http2 surface"],
     [moduleUsesDgram(mod), "the node:dgram surface"],
+    [moduleUsesMidi(mod), "the node:midi surface"],
     [moduleUsesFsWatch(mod), "fs.watch"],
     [moduleUsesStream(mod), "the node:stream surface"],
     [moduleUsesTls(mod), "the node:tls surface"],
@@ -7240,6 +7318,16 @@ export const MAY_THROW_LIB_FNS: ReadonlySet<IrLibFn> = new Set([
   "dgram.address",
   "dgram.close",
   "dgram.closeCb",
+  // node:midi synchronous throws: allocation failure on construct, a bad
+  // port index or absent backend on open, a virtual port where the platform
+  // has none (WinMM), and send on a closed output.
+  "midi.newInput",
+  "midi.newOutput",
+  "midi.portName",
+  "midi.openPort",
+  "midi.openVirtual",
+  "midi.sendArray",
+  "midi.sendBytes",
   // The assert surface: every entry point except sameValue, bytesDeepEq,
   // and the shape accumulator's begin/slot/test calls throws the
   // catchable AssertionError on failure.

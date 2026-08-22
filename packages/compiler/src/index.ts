@@ -24,7 +24,7 @@ import {
 import { validateSidecar } from "./library/sidecar-validate.js";
 import { entryFunctionExports, type EntryExportInfo } from "./frontend/lib-exports.js";
 import { entryContractFacts, type ContractFacts } from "./frontend/lib-contract.js";
-import { moduleLibAsyncSurface, moduleLibNondeterministicSurface, moduleEmbedsBuiltin, moduleEmbedsCompressedNpm, moduleUsesAssert, moduleUsesCopying, moduleUsesDc, moduleUsesDgram, moduleUsesDynAsync, moduleUsesDynInvoke, moduleUsesEmitter, moduleUsesFetch, moduleUsesFileHandle, moduleUsesFsWatch, moduleUsesHttp2, moduleUsesHttpServer, moduleUsesInspect, moduleUsesLegacyTextDecoder, moduleUsesNet, moduleUsesNodeTest, moduleUsesParseArgs, moduleUsesProcessEvents, moduleUsesQs, moduleUsesRegex, moduleUsesSearchParams, moduleUsesStream, moduleUsesSymbol, moduleUsesTls, moduleUsesTlsCa, moduleUsesZlib, type IrFfiImport, type IrLibSection, type IrModule, type IrRecordShape, type IrType, type SrcLoc } from "./ir/nodes.js";
+import { moduleLibAsyncSurface, moduleLibNondeterministicSurface, moduleEmbedsBuiltin, moduleEmbedsCompressedNpm, moduleUsesAssert, moduleUsesCopying, moduleUsesDc, moduleUsesDgram, moduleUsesDynAsync, moduleUsesDynInvoke, moduleUsesEmitter, moduleUsesFetch, moduleUsesFileHandle, moduleUsesFsWatch, moduleUsesHttp2, moduleUsesHttpServer, moduleUsesInspect, moduleUsesLegacyTextDecoder, moduleUsesMidi, moduleUsesNet, moduleUsesNodeTest, moduleUsesParseArgs, moduleUsesProcessEvents, moduleUsesQs, moduleUsesRegex, moduleUsesSearchParams, moduleUsesStream, moduleUsesSymbol, moduleUsesTls, moduleUsesTlsCa, moduleUsesZlib, type IrFfiImport, type IrLibSection, type IrModule, type IrRecordShape, type IrType, type SrcLoc } from "./ir/nodes.js";
 import { serializeModule } from "./ir/serialize.js";
 import { validateModule } from "./ir/validate.js";
 import { canonicalBuiltinModule, checkPreflight, isNodeTypesPath, loadProgram, locOf, requiresOf, resolveNpmImport, type LoadResult } from "./frontend/program.js";
@@ -250,6 +250,7 @@ function moduleWasiUnavailableSurface(mod: IrModule): { surface: string; loc: Sr
     ["h2.", "network sockets (WASI Preview 1 has no socket API)"],
     ["dgram.", "network sockets (WASI Preview 1 has no socket API)"],
     ["dns.", "network sockets (WASI Preview 1 has no socket API)"],
+    ["midi.", "MIDI devices (WASI Preview 1 has no MIDI API)"],
     ["tls.", "network sockets (WASI Preview 1 has no socket API)"],
     ["fetch.", "network-backed fetch (WASI Preview 1 has no socket API)"],
     ["fs.watch", "filesystem watching (WASI Preview 1 has no notification API)"],
@@ -264,6 +265,8 @@ function moduleWasiUnavailableSurface(mod: IrModule): { surface: string; loc: Sr
     ["http2Session", "network sockets (WASI Preview 1 has no socket API)"],
     ["http2Stream", "network sockets (WASI Preview 1 has no socket API)"],
     ["dgramSocket", "network sockets (WASI Preview 1 has no socket API)"],
+    ["midiInput", "MIDI devices (WASI Preview 1 has no MIDI API)"],
+    ["midiOutput", "MIDI devices (WASI Preview 1 has no MIDI API)"],
     ["fsWatcher", "filesystem watching (WASI Preview 1 has no notification API)"],
     ["httpReq", "network sockets (WASI Preview 1 has no socket API)"],
     ["httpRes", "network sockets (WASI Preview 1 has no socket API)"],
@@ -452,11 +455,10 @@ function detectAutoPackages(
     }
     for (const { spec, loc } of edges) {
       if (isRelativeSpecifier(spec) || spec.startsWith("node:") || spec.startsWith("#")) continue;
-      // Bare builtin names ("fs", "path") are the builtin machinery's
-      // business (and the SC4005 async_free gate's, in library mode) —
-      // never npm candidates. Auto keeps its original path (the
-      // @types/node answer skips them below), byte-for-byte.
-      if (mode === "lib" && canonicalBuiltinModule(spec) !== null) continue;
+      // Bare builtin names ("fs", "path", and the Node-compatible "midi"
+      // package surface) are the builtin machinery's business — never npm
+      // candidates, even when a package supplies the declarations.
+      if (canonicalBuiltinModule(spec) !== null) continue;
       const npm = resolveNpmImport(sf.fileName, spec);
       if (npm !== null && isNodeTypesPath(npm.typesFile)) continue;
       if (npm === null) {
@@ -894,6 +896,7 @@ function executableNativeFeatures(
     http: moduleUsesHttpServer(mod),
     http2: moduleUsesHttp2(mod),
     dgram: moduleUsesDgram(mod),
+    midi: moduleUsesMidi(mod),
     watch: moduleUsesFsWatch(mod),
     foreignFfi: hasForeignFfiCallback(mod.ffiImports ?? []),
     nodeTest: moduleUsesNodeTest(mod),
@@ -952,6 +955,7 @@ async function compileExecutableNative(
     http: features.http,
     http2: features.http2,
     dgram: features.dgram,
+    midi: features.midi,
     watch: features.watch,
     foreignFfi: features.foreignFfi,
     nodeTest: features.nodeTest,

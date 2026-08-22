@@ -42,6 +42,7 @@ export interface EarlyExecutableNativeFeatures {
   http: boolean;
   http2: boolean;
   dgram: boolean;
+  midi: boolean;
   watch: boolean;
   foreignFfi: boolean;
   nodeTest: boolean;
@@ -143,6 +144,7 @@ const BOOLEAN_NATIVE_KEYS = [
   "http",
   "http2",
   "dgram",
+  "midi",
   "watch",
   "foreignFfi",
   "nodeTest",
