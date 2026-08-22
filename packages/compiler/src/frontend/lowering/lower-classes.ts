@@ -4980,8 +4980,11 @@ export function lowerNew(L: Lowerer, expr: ts.NewExpression): IrExpr {
       // `new URL(input)`: the WHATWG URL class (stdlib/@types provenance —
       // a user's own `class URL` resolves through classBySymbol below).
       // One string argument; invalid input throws a catchable TypeError
-      // ("Invalid URL"), like Node. The lib's base-argument form
-      // typechecks and is fenced here.
+      // ("Invalid URL"), like Node. The two-argument `new URL(url, base)`
+      // form is resolved at COMPILE TIME when both arguments are string
+      // literals (Node's own URL class does the resolving); any other
+      // shape — a non-literal url or base, or a base that fails to
+      // resolve — is fenced.
       // `new RegExp(pattern, flags?)`: runtime construction over the same
       // libregexp engine the literals ride. The pattern compiles EAGERLY,
       // so bad input throws Node's catchable SyntaxError at construction.
@@ -5019,7 +5022,6 @@ export function lowerNew(L: Lowerer, expr: ts.NewExpression): IrExpr {
               return { kind: "libCall", fn: "url.new", args: [{ kind: "strLit", value: resolved, type: STRING, loc }], type: URL_T, loc };
             } catch {
               L.noLowering("new URL with an unresolvable base URL", expr, "the base argument must be a valid absolute URL");
-              return { kind: "libCall", fn: "url.new", args: [L.lowerExprExpecting(args[0]!, STRING)], type: URL_T, loc };
             }
           }
           L.noLowering(
@@ -5027,7 +5029,6 @@ export function lowerNew(L: Lowerer, expr: ts.NewExpression): IrExpr {
             expr,
             "compile-time string literals for both url and base are required; resolve relative inputs against a base yourself, or use --dynamic for runtime URL resolution",
           );
-          return { kind: "libCall", fn: "url.new", args: [L.lowerExprExpecting(args[0]!, STRING)], type: URL_T, loc };
         }
         if (args.length !== 1) {
           L.noLowering(
