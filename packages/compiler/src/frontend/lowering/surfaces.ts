@@ -1675,10 +1675,11 @@ export const BUILTIN_MODULE_FENCE_HINTS: Record<string, Record<string, string | 
         : stdlibGlobalNameOf(L, init);
     if (name === null) return false;
     // Only alias OBJECT-shaped globals whose members lower by receiver
-    // identity (process, console, globalThis itself, and perf_hooks'
-    // performance — the mockable-clock idiom snapshots it). Function-valued
-    // globals (setTimeout) taken as values are a different story — the
-    // ordinary value paths (and their fences) apply.
+    // identity (process, console, globalThis itself, perf_hooks'
+    // performance — the mockable-clock idiom snapshots it — and Buffer,
+    // captured behind a capability probe). Function-valued globals
+    // (setTimeout) taken as values are a different story — the ordinary
+    // value paths (and their fences) apply.
     if (
       name !== "process" && name !== "console" && name !== "globalThis" &&
       name !== "performance" && name !== "Buffer"
