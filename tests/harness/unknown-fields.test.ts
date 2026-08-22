@@ -1,14 +1,14 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, test } from "vitest";
 import { compile } from "@scriptc/compiler";
 
 const execFileAsync = promisify(execFile);
-const cacheDir = join(tmpdir(), "scriptc-unknown-fields-tests");
+const repoRoot = join(import.meta.dirname, "../..");
+const cacheDir = join(repoRoot, "node_modules/.cache/scriptc-tests");
 const sanitize = process.env["SCRIPTC_SAN"] === "1";
 
 interface RunResult {
