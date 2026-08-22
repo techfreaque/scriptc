@@ -44,6 +44,7 @@ const native: EarlyExecutableNativeFeatures = {
   http: false,
   http2: false,
   dgram: false,
+  midi: false,
   watch: false,
   foreignFfi: false,
   nodeTest: false,
