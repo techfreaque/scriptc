@@ -26,6 +26,7 @@ export const ISLAND_AMBIENT_TYPES = [
   "AbortController",
   "AbortSignal",
   "Headers",
+  "HeadersInit",
   "ReadableStream",
   "ReadableStreamDefaultReader",
   "ReadableStreamDefaultController",
