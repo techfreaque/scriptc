@@ -4663,6 +4663,12 @@ export function lowerClassMembers(L: Lowerer, info: ClassInfo): IrFunction[] {
     if (value.kind === "unitLit" && value.unit === "undefined") {
       return { kind: "strLit", value: "", type: STRING, loc };
     }
+    // In --dynamic mode, a dyn/jsval message value (e.g. from an `unknown`
+    // parameter narrowed via typeof) converts to string via the dyn-toStringCoerce
+    // path — mirrors what Node does for non-string Error messages.
+    if (L.dynamic && (value.type.kind === "dyn" || value.type.kind === "jsval")) {
+      return { kind: "libCall", fn: "dyn.toStringCoerce", args: [value], type: STRING, loc };
+    }
     L.unsupported(
       "SC1090",
       args[0]!,
@@ -5065,6 +5071,13 @@ export function lowerNew(L: Lowerer, expr: ts.NewExpression): IrExpr {
         }
         if (arg.type.kind === "date") {
           return arg;
+        }
+        // In --dynamic mode, a dyn/jsval arg (e.g. from `any`/`unknown`-typed DB
+        // columns) is treated as milliseconds via dynCheck — matches Node's
+        // `new Date(number)` behavior when the value is a timestamp.
+        if (L.dynamic && (arg.type.kind === "dyn" || arg.type.kind === "jsval")) {
+          const ms: IrExpr = { kind: "dynCheck", value: arg.type.kind === "dyn" ? arg : { kind: "dynFrom", value: arg, type: DYN, loc }, type: F64, loc };
+          return { kind: "libCall", fn: "date.newMs", args: [ms], type: DATE_T, loc };
         }
         L.noLowering(
           `new Date of '${L.fmt(arg.type)}' values`,
