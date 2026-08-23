@@ -4259,6 +4259,20 @@ export function lowerClassMembers(L: Lowerer, info: ClassInfo): IrFunction[] {
     const out: IrStmt[] = [];
     const thisType: IrType = { kind: "object", className: info.def.name };
     for (const f of info.fieldOrder) {
+      // A dyn-typed field with no initializer is zero/NULL in C, which
+      // segfaults on the first read — emit an explicit undefined assignment.
+      if (!f.initializer && f.type.kind === "dyn") {
+        const loc: SrcLoc = { file: L.entry.fileName, start: 0, end: 0 };
+        out.push({
+          kind: "fieldSet",
+          obj: { kind: "varRef", localId: thisLocal.id, type: thisType, loc },
+          className: info.def.name,
+          field: f.name,
+          value: dynUndefinedExpr(loc),
+          loc,
+        });
+        continue;
+      }
       if (!f.initializer) continue;
       L.stats.statementsTotal++;
       L.bumpFileStat(locOf(f.initializer).file, "total");
@@ -4667,7 +4681,10 @@ export function lowerClassMembers(L: Lowerer, info: ClassInfo): IrFunction[] {
     // parameter narrowed via typeof) converts to string via the dyn-toStringCoerce
     // path — mirrors what Node does for non-string Error messages.
     if (L.dynamic && (value.type.kind === "dyn" || value.type.kind === "jsval")) {
-      return { kind: "libCall", fn: "dyn.toStringCoerce", args: [value], type: STRING, loc };
+      const dv: IrExpr = value.type.kind === "jsval"
+        ? { kind: "dynFromJsval", value, type: DYN, loc }
+        : value;
+      return { kind: "libCall", fn: "dyn.toStringCoerce", args: [dv], type: STRING, loc };
     }
     L.unsupported(
       "SC1090",
@@ -5076,7 +5093,7 @@ export function lowerNew(L: Lowerer, expr: ts.NewExpression): IrExpr {
         // columns) is treated as milliseconds via dynCheck — matches Node's
         // `new Date(number)` behavior when the value is a timestamp.
         if (L.dynamic && (arg.type.kind === "dyn" || arg.type.kind === "jsval")) {
-          const ms: IrExpr = { kind: "dynCheck", value: arg.type.kind === "dyn" ? arg : { kind: "dynFrom", value: arg, type: DYN, loc }, type: F64, loc };
+          const ms: IrExpr = { kind: "dynCheck", value: arg.type.kind === "dyn" ? arg : { kind: "dynFromJsval", value: arg, type: DYN, loc }, type: F64, loc };
           return { kind: "libCall", fn: "date.newMs", args: [ms], type: DATE_T, loc };
         }
         L.noLowering(
