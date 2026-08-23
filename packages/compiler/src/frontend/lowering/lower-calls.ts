@@ -6111,8 +6111,12 @@ export function lowerPromiseMethodCall(L: Lowerer, call: ts.CallExpression,
       // is an opaque island handle, not the TypeScript type parameter.
       const prevInJsvalThenHandler = L.inJsvalThenHandler;
       if (inner.kind === "jsval") L.inJsvalThenHandler = true;
-      let cb = L.lowerExpr(call.arguments[0]!);
-      L.inJsvalThenHandler = prevInJsvalThenHandler;
+      let cb: IrExpr;
+      try {
+        cb = L.lowerExpr(call.arguments[0]!);
+      } finally {
+        L.inJsvalThenHandler = prevInJsvalThenHandler;
+      }
       // A TYPED handler on a DYN-settling promise (the tracePromise
       // result's `.then((value) => ...)` — the checker's generic
       // instantiation typed the parameter, but the settled value is a
