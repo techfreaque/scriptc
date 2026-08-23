@@ -492,6 +492,8 @@ export function cFnPtrCast(ft: IrType & { kind: "func" }): string {
 export function elemKindC(elem: IrType): string {
   switch (elem.kind) {
     case "f64":
+    // Dates are epoch-ms f64 scalars at the C level — use the same slot.
+    case "date":
       return "SCR_ELEM_F64";
     case "bool":
       return "SCR_ELEM_BOOL";
@@ -634,7 +636,8 @@ export const DV_SET_KIND_C: Record<string, string> = {
 /** Runtime accessor suffix for an element type: arrays store f64 and bool
  * unboxed and everything refcounted as a pointer (`_ref`). */
 export function elemAccess(elem: IrType): "f64" | "bool" | "ref" {
-  return elem.kind === "f64" ? "f64" : elem.kind === "bool" ? "bool" : "ref";
+  // Dates are stored as epoch-ms f64 scalars at the C level.
+  return (elem.kind === "f64" || elem.kind === "date") ? "f64" : elem.kind === "bool" ? "bool" : "ref";
 }
 
 /** Runtime suffix for a map's KEY kind (f64 with SameValueZero, or string

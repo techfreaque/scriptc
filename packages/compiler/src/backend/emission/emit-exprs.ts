@@ -202,7 +202,7 @@ function streamTypedRefAdapter(
       `  ScrDyn *d = scr_dyn_new_arr();`,
       `  for (size_t sc_i = 0; sc_i < v->len; sc_i++) {`,
     );
-    if (elem.kind === "f64") {
+    if (elem.kind === "f64" || elem.kind === "date") {
       lines.push(
         `    scr_dyn_arr_push(d, ${box(elem, "scr_arr_get_f64(v, (double)sc_i)")});`,
       );
@@ -7509,6 +7509,8 @@ export function emitExpr(E: CEmitter, e: IrExpr): Temp {
         const v = E.emitExpr(e.value);
         switch (e.value.type.kind) {
           case "f64":
+          case "date":
+            // Date crossing IN: passed as millisecond timestamp (a JS number).
             return E.newTemp(e.type, `scr_jsval_from_f64(${v.name})`);
           case "bool":
             return E.newTemp(e.type, `scr_jsval_from_bool(${v.name})`);
