@@ -618,6 +618,14 @@ export class CheckerFacade {
     return base;
   }
 
+  /** Returns the base constraint of a TypeParameter, or undefined if none.
+   * Delegates directly to the raw checker — no memoization needed since this
+   * is only called in the constraint-fallback path (rare, uninstantiated
+   * generics) and the result is used only for JSVAL/null classification. */
+  getBaseConstraintOfType(type: Type): Type | undefined {
+    return this.raw.getBaseConstraintOfType(type);
+  }
+
   private intrinsic(name: string, fetch: () => Type): Type {
     let type = this.intrinsics.get(name);
     if (type === undefined) {
