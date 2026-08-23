@@ -383,7 +383,7 @@ function streamFromArrayAdapter(
     );
   }
   d.push(`${sig} { /* ReadableStream.from array<${key}> */`);
-  if (elem.kind === "f64") {
+  if (elem.kind === "f64" || elem.kind === "date") {
     d.push(
       `  return ${E.toDynHelper(elem)}(scr_arr_get_f64(sc_a, sc_i));`,
     );
@@ -3003,7 +3003,7 @@ export function emitExpr(E: CEmitter, e: IrExpr): Temp {
           if (e.type.inner.kind !== "array") throw new Error("emitter bug: promise.all result");
           const elem = e.type.inner.elem;
           const store =
-            elem.kind === "f64"
+            (elem.kind === "f64" || elem.kind === "date")
               ? "scr_promise_all_store_f64"
               : elem.kind === "bool"
                 ? "scr_promise_all_store_bool"

@@ -536,7 +536,6 @@ export function elemKindC(elem: IrType): string {
     case "map":
     case "set":
     case "regex":
-    case "date":
     case "url":
     case "searchParams":
     case "stats":
