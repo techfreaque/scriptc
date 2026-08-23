@@ -103,8 +103,8 @@ export interface FileParts {
     if (dep.fileName.endsWith(".json") || dep.fileName.endsWith(".cts")) return null;
     if (isCjsJsFile(dep)) return null;
     // JSX files are not supported by scriptc's native compiler.
-    // Dynamic imports of .tsx files resolve to an empty namespace stub at runtime.
-    if (dep.fileName.endsWith(".tsx")) return null;
+    // Dynamic imports of .tsx/.jsx files resolve to an empty namespace stub at runtime.
+    if (dep.fileName.endsWith(".tsx") || dep.fileName.endsWith(".jsx")) return null;
     return dep;
   }
 
